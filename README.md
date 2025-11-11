@@ -8,7 +8,7 @@ Other requirements can be installed via `pip`.
 
 ```bash
 # clone project
-git clone https://github.com/Virture2/YJT.git
+git clone -b master https://github.com/Virture2/YJT.git
 cd YJT
 
 # [OPTIONAL] create conda environment
