@@ -1,0 +1,109 @@
+# we will use many functions inside the parent fol
+# der
+import sys
+sys.path.insert(0, '../')
+# load the dataloader and define transforms
+from src.data.components.KITTI_dataset import KITTI
+import torch
+from src.utils import custom_transform
+# you could utilize augmentations here
+transform_train = [custom_transform.ToTensor(),
+                   custom_transform.Resize((432, 960))]
+transform_train = custom_transform.Compose(transform_train)
+dataset = KITTI("kitti_data", train_seqs=['00','01','02','04','06', '09'], transform=transform_train, sequence_length=11)
+save_dir = "kitti_latent_data/train_10"
+loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+# we need to define helpers to convert the dictionary to object
+class ObjFromDict:
+    def __init__(self, dictionary):
+        for k, v in dictionary.items():
+            setattr(self, k, v)
+# Define the FeatureEncoder
+from src.models.components.vsvio import Encoder
+
+import argparse
+import json
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--cfg",
+    help="experiment configure file name",
+    default="sintel-L.json",
+    type=str,
+)
+args = parser.parse_args()
+
+# ===== 读取 cfg JSON 并生成 args 对象 =====
+with open(args.cfg, 'r') as f:
+    raft_cfg = json.load(f)
+
+raft_args = ObjFromDict(raft_cfg)
+
+params = {"img_w": 432, "img_h": 960, "v_f_len": 512, "i_f_len": 256 ,"imu_dropout": 0.1, "seq_len":11}
+params = ObjFromDict(params)
+
+# we will define a wrapper model for feature encoder to load the pretrained feature_net weights
+class FeatureEncodingModel(torch.nn.Module):
+    def __init__(self, params,raft_args):
+        super(FeatureEncodingModel, self).__init__()
+        self.Feature_net = Encoder(params,raft_args)
+    def forward(self, imgs, imus):
+        feat_v, feat_i = self.Feature_net(imgs, imus)
+        return feat_v, feat_i
+    
+model = FeatureEncodingModel(params,raft_args)
+
+# ===== 加载视觉RAFT分支预训练权重 =====
+raft_pretrained_w = torch.load(
+    "../pretrained_models/FA-C-T-Mixed-TSKH432x960.pth",
+    map_location="cpu"
+)
+
+# 给预训练权重的 key 加上前缀
+raft_pretrained_w = {f"Feature_net.raft.{k}": v for k, v in raft_pretrained_w.items()}
+model_dict = model.state_dict()
+# 过滤，只保留匹配的 key
+filtered_dict = {k: v for k, v in raft_pretrained_w.items() if k in model_dict}
+# 更新并加载
+model_dict.update(filtered_dict)
+model.load_state_dict(model_dict)
+print(f"已加载 {len(filtered_dict)} 个匹配的参数（总计 {len(model_dict)} 个）")
+
+#只加载IMU分支
+pretrained_w = torch.load("../pretrained_models/vf_512_if_256_3e-05.model", map_location='cpu')
+model_dict = model.state_dict()
+imu_update = {k: v for k, v in pretrained_w.items() if "inertial_encoder" in k}
+print(f"加载了 {len(imu_update)} 个IMU权重")
+model_dict.update(imu_update)
+model.load_state_dict(model_dict)
+
+# freeze the weights
+for param in model.Feature_net.parameters():
+    param.requires_grad = False
+
+# create a directory to save the latent vectors
+import os
+
+os.makedirs(save_dir, exist_ok=True)
+
+# loop over the dataset, save the latent vectors by concatenating the feature vectors
+import numpy as np
+model.eval()
+model.to("cuda")
+# use tqdm
+from tqdm import tqdm
+with torch.no_grad():
+    for i, ((imgs, imus, rot, w), gts) in tqdm(enumerate(loader), total=len(loader)):
+        imgs = imgs.to("cuda").float()
+        imus = imus.to("cuda").float()
+        feat_v, feat_i = model(imgs, imus)
+        # 输出视觉和惯性特征的形状
+        # print(f"Visual feature shape (feat_v): {feat_v.shape}")
+        # print(f"Inertial feature shape (feat_i): {feat_i.shape}")
+        latent_vector = torch.cat((feat_v, feat_i), 2)
+        latent_vector = latent_vector.squeeze(0)
+        np.save(os.path.join(save_dir,f"{i}.npy"), latent_vector.cpu().detach().numpy())
+        # also save the ground truth, rotation and weight
+        np.save(os.path.join(save_dir,f"{i}_gt.npy"), gts.cpu().detach().numpy())
+        np.save(os.path.join(save_dir,f"{i}_rot.npy"), rot.cpu().detach().numpy())
+        np.save(os.path.join(save_dir,f"{i}_w.npy"), w.cpu().detach().numpy())
