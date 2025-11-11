@@ -12,7 +12,7 @@ git clone https://github.com/Virture2/YJT.git
 cd YJT
 
 # [OPTIONAL] create conda environment
-conda create -n vift python=3.9
+conda create -n YJT python=3.9
 conda activate YJT
 
 # install pytorch according to instructions
