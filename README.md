@@ -37,8 +37,8 @@ Create a folder named `pretrained_models` under the YJT directory and place the 
 
 ```bash
 cd data
-python latent_caching.py
-python latent_val_caching.py
+python new_latent_caching.py
+python new_latent_val_caching.py
 ```
 
 ## Replicating Experiments in Paper
