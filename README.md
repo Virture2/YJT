@@ -46,6 +46,7 @@ python new_latent_val_caching.py
 After saving latents for KITTI dataset, you can run following command to run the experiments.
 
 ```bash
+cd ..
 python src/train.py experiment=new_latent_kitti_vio_weighted_tf trainer=gpu logger=tensorboard  tags="[TE, 11, L1, 40, no, yes]"
 ```
 
