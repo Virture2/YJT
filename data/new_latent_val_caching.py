@@ -63,7 +63,7 @@ model.load_state_dict(model_dict)
 
 # ======== 再加载你新训练的GNSS权重 =========
 # 注意：这里路径用你实际保存的GNSS权重路径
-gnss_trained_weights = torch.load(r"E:\VITF\pretrained_models\gnss_encoder_trained.pth", map_location='cpu')
+gnss_trained_weights = torch.load("../pretrained_models/gnss_encoder_trained.pth", map_location='cpu')
 model_dict = model.state_dict()
 # 只保留GNSS分支权重
 gnss_update = {k: v for k, v in gnss_trained_weights.items() if "gnss_encoder" in k}
