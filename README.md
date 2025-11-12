@@ -49,5 +49,13 @@ After saving latents for KITTI dataset, you can run following command to run the
 cd ..
 python src/train.py experiment=new_latent_kitti_vio_weighted_tf trainer=gpu logger=tensorboard  tags="[TE, 11, L1, 40, no, yes]"
 ```
+## Caution
 
+If the execution results do not fully match the expected outcome, it may be due to differences in conda environment configurations. 
+Try retrying with the environment.yml specified in the directory.
+
+Use the following command to set up the environment, then execute the above command within that virtual environment.
+```bash
+conda env create -f environment.yml
+```
 
